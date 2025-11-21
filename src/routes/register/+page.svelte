@@ -1,76 +1,88 @@
 <script>
   import { goto } from '$app/navigation';
   import { userAPI } from '../../lib/api.js';
-  import { setAuthToken, setCurrentUser } from '../../lib/auth.js';
 
   let account = '';
   let password = '';
+  let confirmPassword = '';
   let loading = false;
   let error = '';
+  let success = '';
 
   /**
-   * 处理登录
+   * 处理注册
    */
-  async function handleLogin() {
-    if (!account.trim() || !password.trim()) {
-      error = '请输入账号和密码';
+  async function handleRegister() {
+    if (!account.trim() || !password.trim() || !confirmPassword.trim()) {
+      error = '请填写所有字段';
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      error = '两次输入的密码不一致';
+      return;
+    }
+
+    if (password.length < 6) {
+      error = '密码长度至少6位';
       return;
     }
 
     loading = true;
     error = '';
+    success = '';
 
     try {
-      const response = await userAPI.login(account.trim(), password);
+      await userAPI.register(account.trim(), password);
+      success = '注册成功！即将跳转到登录页面...';
       
-      if (response.data && response.data.token) {
-        // 保存token
-        setAuthToken(response.data.token);
-        
-        // 跳转到主页面
-        goto('/chat');
-      } else {
-        error = '登录失败，请检查账号密码';
-      }
+      // 延迟跳转到登录页面
+      setTimeout(() => {
+        goto('/login');
+      }, 2000);
     } catch (err) {
-      error = err.message || '登录失败，请稍后重试';
+      error = err.message || '注册失败，请稍后重试';
     } finally {
       loading = false;
     }
   }
 
   /**
-   * 跳转到注册页面
+   * 返回登录页面
    */
-  function goToRegister() {
-    goto('/register');
+  function goToLogin() {
+    goto('/login');
   }
 
   /**
-   * 处理回车键登录
+   * 处理回车键注册
    * @param {KeyboardEvent} event
    */
   function handleKeydown(event) {
     if (event.key === 'Enter') {
-      handleLogin();
+      handleRegister();
     }
   }
 </script>
 
 <svelte:head>
-  <title>登录 - ChatSpace</title>
+  <title>注册 - ChatSpace</title>
 </svelte:head>
 
-<div class="login-container">
-  <div class="login-card wechat-card">
-    <div class="login-header">
-      <h1 class="login-title">ChatSpace</h1>
-      <p class="login-subtitle">欢迎回来</p>
+<div class="register-container">
+  <div class="register-card wechat-card">
+    <div class="register-header">
+      <h1 class="register-title">创建账号</h1>
+      <p class="register-subtitle">加入 ChatSpace</p>
     </div>
 
-    <form class="login-form" on:submit|preventDefault={handleLogin}>
+    <form class="register-form" on:submit|preventDefault={handleRegister}>
       {#if error}
         <div class="wechat-error">{error}</div>
+      {/if}
+
+      {#if success}
+        <div class="wechat-success">{success}</div>
       {/if}
 
       <div class="wechat-form-group">
@@ -92,29 +104,42 @@
           id="password"
           type="password"
           class="wechat-input"
-          placeholder="请输入密码"
+          placeholder="请输入密码（至少6位）"
           bind:value={password}
           on:keydown={handleKeydown}
           disabled={loading}
         />
       </div>
 
-      <div class="login-actions">
+      <div class="wechat-form-group">
+        <label for="confirm-password" class="wechat-label">确认密码</label>
+        <input
+          id="confirm-password"
+          type="password"
+          class="wechat-input"
+          placeholder="请再次输入密码"
+          bind:value={confirmPassword}
+          on:keydown={handleKeydown}
+          disabled={loading}
+        />
+      </div>
+
+      <div class="register-actions">
         <button
           type="submit"
-          class="wechat-btn wechat-btn-primary login-btn"
+          class="wechat-btn wechat-btn-primary register-btn"
           disabled={loading}
         >
-          {loading ? '登录中...' : '登录'}
+          {loading ? '注册中...' : '注册'}
         </button>
 
         <button
           type="button"
-          class="wechat-btn wechat-btn-ghost register-btn"
-          on:click={goToRegister}
+          class="wechat-btn wechat-btn-ghost login-btn"
+          on:click={goToLogin}
           disabled={loading}
         >
-          注册新账号
+          已有账号？去登录
         </button>
       </div>
     </form>
@@ -122,7 +147,7 @@
 </div>
 
 <style>
-  .login-container {
+  .register-container {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -130,52 +155,47 @@
     padding: var(--wechat-space-xl);
   }
 
-  .login-card {
+  .register-card {
     width: 100%;
     max-width: 400px;
     padding: var(--wechat-space-2xl);
   }
 
-  .login-header {
+  .register-header {
     text-align: center;
     margin-bottom: var(--wechat-space-2xl);
   }
 
-  .login-title {
+  .register-title {
     font-size: 28px;
     font-weight: 700;
     color: var(--wechat-text-primary);
     margin: 0 0 var(--wechat-space-sm) 0;
   }
 
-  .login-subtitle {
+  .register-subtitle {
     font-size: 16px;
     color: var(--wechat-text-secondary);
     margin: 0;
   }
 
-  .login-form {
-    margin-bottom: var(--wechat-space-xl);
-  }
-
-  .login-actions {
+  .register-actions {
     display: flex;
     flex-direction: column;
     gap: var(--wechat-space-md);
   }
 
-  .login-btn,
-  .register-btn {
+  .register-btn,
+  .login-btn {
     width: 100%;
   }
 
-
   @media (max-width: 480px) {
-    .login-container {
+    .register-container {
       padding: var(--wechat-space-lg);
     }
 
-    .login-card {
+    .register-card {
       padding: var(--wechat-space-xl);
     }
   }
