@@ -15,9 +15,12 @@ jobs:
           host: chatspace.bond
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
+          timeout: 30s
+          command_timeout: 240m
           script: |
             set -e
             cd /chatspace/chatspace-fe-simple
             git pull
             npm install
             npm run build
+            docker restart nginx
