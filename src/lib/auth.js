@@ -32,6 +32,13 @@ export function setAuthToken(token) {
  */
 export function setCurrentUser(user) {
     currentUser.set(user);
+    
+    // 保存到localStorage
+    if (user) {
+        localStorage.setItem('currentUser', JSON.stringify(user));
+    } else {
+        localStorage.removeItem('currentUser');
+    }
 }
 
 /**
@@ -50,6 +57,17 @@ export function initAuth() {
         const token = localStorage.getItem('authToken');
         if (token) {
             setAuthToken(token);
+        }
+        
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            try {
+                const user = JSON.parse(savedUser);
+                setCurrentUser(user);
+            } catch (e) {
+                console.error('Error parsing saved user:', e);
+                localStorage.removeItem('currentUser');
+            }
         }
     }
 }
