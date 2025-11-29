@@ -25,7 +25,7 @@ Base URLs:
 
 # Authentication
 
-# 用户管理
+# 用户服务
 
 ## POST 注册
 
@@ -170,7 +170,7 @@ GET /api/user/info
 |» data|object|true|none||none|
 |»» account|string|true|none||none|
 
-# 关系管理/好友管理
+# 关系服务/好友管理
 
 ## POST 申请添加好友
 
@@ -180,8 +180,8 @@ POST /api/relation/friend/add/apply
 
 ```json
 {
-  "account": "string",
-  "remark": "string"
+  "account": "wkd",
+  "remark": "哈哈"
 }
 ```
 
@@ -192,7 +192,7 @@ POST /api/relation/friend/add/apply
 |Authorization|header|string| 是 ||none|
 |body|body|object| 是 ||none|
 |» account|body|string| 是 | 目标账号|none|
-|» remark|body|string¦null| 否 | 申请附言|none|
+|» remark|body|string| 否 | 申请附言|none|
 
 > 返回示例
 
@@ -236,7 +236,7 @@ POST /api/relation/friend/add/reply
 
 ```json
 {
-  "account": "string",
+  "account": "wkd",
   "accept": true
 }
 ```
@@ -298,14 +298,14 @@ GET /api/relation/friend/add
 {
   "list": [
     {
-      "from_user_account": "string",
-      "to_user_account": "string",
-      "remark": "string",
-      "status": "string",
-      "created_at": 0
+      "from_user_account": "wkd",
+      "to_user_account": "ABL",
+      "remark": "哈哈",
+      "status": "00",
+      "created_at": 1779716776436
     }
   ],
-  "total": 0
+  "total": 1
 }
 ```
 
@@ -322,11 +322,11 @@ GET /api/relation/friend/add
 |名称|类型|必选|约束|中文名|说明|
 |---|---|---|---|---|---|
 |» list|[object]|true|none||none|
-|»» from_user_account|string|false|none||none|
-|»» to_user_account|string|false|none||none|
-|»» remark|string|false|none|申请附言|none|
-|»» status|string|false|none|状态：00 待处理 02 已同意 04 已拒绝|none|
-|»» created_at|integer|false|none||none|
+|»» from_user_account|string|true|none||none|
+|»» to_user_account|string|true|none||none|
+|»» remark|string|true|none|申请附言|none|
+|»» status|string|true|none|状态：00 待处理 02 已同意 04 已拒绝|none|
+|»» created_at|integer|true|none||none|
 |» total|integer|true|none||none|
 
 ## GET 获取好友列表
@@ -373,6 +373,48 @@ GET /api/relation/friend
 |»» account|string|false|none||none|
 |»» create_at|integer|false|none||none|
 |» total|integer|true|none||none|
+
+# 文件服务
+
+## POST 上传头像
+
+POST /api/file/avatar
+
+1.上传正方形图片；
+2.只支持webp格式；
+3.图片Nginx限制最大10M，后端业务层限制最大5MB；
+4.通过url：/avatars/avatar_useraccount.webp可访问到头像，如https://chatspace.bond/avatars/avatar_ABL.webp
+
+> Body 请求参数
+
+```yaml
+file: ""
+
+```
+
+### 请求参数
+
+|名称|位置|类型|必选|中文名|说明|
+|---|---|---|---|---|---|
+|Authorization|header|string| 是 ||none|
+|body|body|object| 是 ||none|
+|» file|body|string(binary)| 否 ||none|
+
+> 返回示例
+
+> 200 Response
+
+```json
+{}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 返回数据结构
 
 # 数据模型
 

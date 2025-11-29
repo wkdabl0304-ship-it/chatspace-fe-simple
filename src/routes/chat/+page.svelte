@@ -14,6 +14,7 @@
     getUnreadCount
   } from '../../lib/chat-store.js';
   import ChatWindow from '../../lib/components/ChatWindow.svelte';
+  import Avatar from '../../lib/components/Avatar.svelte';
 
   let friends = [];
   let friendRequests = [];
@@ -155,13 +156,6 @@
     goto('/login');
   }
 
-  /**
-   * 获取用户头像字符
-   * @param {string} account
-   */
-  function getAvatarChar(account) {
-    return account ? account.charAt(0).toUpperCase() : '?';
-  }
   
   /**
    * 开始与好友聊天
@@ -216,11 +210,23 @@
           添加好友
         </button>
         
+        <a
+          href="/avatar"
+          class="modern-btn modern-btn-secondary"
+          aria-label="上传头像"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+            <path d="M23 19a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2"/>
+            <circle cx="16" cy="11" r="2"/>
+          </svg>
+          头像上传
+        </a>
+        
         <!-- 用户信息区域 -->
         <div class="user-profile">
-          <div class="user-avatar">
-            {getAvatarChar(currentUserAccount || 'U')}
-          </div>
+          <Avatar account={currentUserAccount || 'U'} size="36px" className="user-avatar" />
           <div class="user-info">
             <div class="user-name">{currentUserAccount || '未登录'}</div>
             <div class="user-status">在线</div>
@@ -342,9 +348,7 @@
                   <!-- 判断是收到的申请还是发出的申请 -->
                   {#if request.from_user_account !== currentUserAccount}
                     <!-- 收到的申请：显示发送者信息 -->
-                    <div class="modern-avatar">
-                      {getAvatarChar(request.from_user_account)}
-                    </div>
+                    <Avatar account={request.from_user_account} size="40px" className="modern-avatar" />
                     <div class="modern-list-content">
                       <div class="modern-list-title">{request.from_user_account}</div>
                       {#if request.remark}
@@ -385,9 +389,7 @@
                     {/if}
                   {:else}
                     <!-- 发出的申请：显示接收者信息 -->
-                    <div class="modern-avatar">
-                      {getAvatarChar(request.to_user_account)}
-                    </div>
+                    <Avatar account={request.to_user_account} size="40px" className="modern-avatar" />
                     <div class="modern-list-content">
                       <div class="modern-list-title">{request.to_user_account}</div>
                       {#if request.remark}
@@ -429,9 +431,7 @@
             <div class="modern-list">
               {#each recentChatList.filter(chat => friends.some(friend => friend.account === chat.account)) as chat}
                 <div class="modern-list-item chat-item" role="button" tabindex="0" on:click={() => handleStartChat(chat.account)} on:keydown={(e) => e.key === 'Enter' && handleStartChat(chat.account)}>
-                  <div class="modern-avatar">
-                    {getAvatarChar(chat.account)}
-                  </div>
+                  <Avatar account={chat.account} size="40px" className="modern-avatar" />
                   <div class="modern-list-content">
                     <div class="modern-list-title">{chat.account}</div>
                     <div class="modern-list-subtitle">{chat.lastMessage}</div>
@@ -476,9 +476,7 @@
             <div class="modern-list">
               {#each friends as friend}
                 <div class="modern-list-item chat-item" role="button" tabindex="0" on:click={() => handleStartChat(friend.account)} on:keydown={(e) => e.key === 'Enter' && handleStartChat(friend.account)}>
-                  <div class="modern-avatar">
-                    {getAvatarChar(friend.account)}
-                  </div>
+                  <Avatar account={friend.account} size="40px" className="modern-avatar" />
                   <div class="modern-list-content">
                     <div class="modern-list-title">{friend.account}</div>
                     <div class="modern-list-subtitle">点击开始聊天</div>
@@ -577,20 +575,6 @@
     border-color: rgba(255, 255, 255, 0.2);
   }
 
-  .user-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--wechat-green) 0%, #06ad56 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: bold;
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(7, 193, 96, 0.3);
-  }
 
   .user-info {
     display: flex;
@@ -871,21 +855,6 @@
 
   .modern-list-item.chat-item:hover {
     background: rgba(7, 193, 96, 0.1);
-  }
-
-  .modern-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--wechat-green, #07c160);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    font-weight: bold;
-    flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   }
 
   .modern-list-content {
