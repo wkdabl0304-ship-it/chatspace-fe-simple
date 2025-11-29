@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 
 // 可配置的后端API地址
-export const apiBaseUrl = writable('http://localhost');
+export const apiBaseUrl = writable('https://chatspace.bond');
 
 // 更新API地址的函数
 /**
