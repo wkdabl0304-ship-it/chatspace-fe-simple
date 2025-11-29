@@ -12,6 +12,7 @@
     wsError
   } from '../chat-store.js';
   import { currentUser } from '../auth.js';
+  import Avatar from './Avatar.svelte';
 
   let messageContainer: HTMLDivElement;
   let inputElement: HTMLTextAreaElement;
@@ -86,33 +87,29 @@
     }
   }
 
-  // 获取用户头像字符
-  function getAvatarChar(account: string) {
-    if (account === 'me') {
-      // 如果有当前用户信息，使用用户账户的首字母
-      const user = $currentUser as any;
-      console.log('Current user:', user); // 调试用
-      if (user && user.account) {
-        return user.account.charAt(0).toUpperCase();
-      }
-      // 如果没有用户信息，尝试从localStorage获取或使用默认值
-      if (typeof window !== 'undefined') {
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-          try {
-            const parsedUser = JSON.parse(savedUser);
-            if (parsedUser && parsedUser.account) {
-              return parsedUser.account.charAt(0).toUpperCase();
-            }
-          } catch (e) {
-            console.error('Error parsing saved user:', e);
+  // 获取当前用户账号
+  function getCurrentUserAccount(): string {
+    // 如果有当前用户信息，使用用户账户
+    const user = $currentUser as any;
+    if (user && user.account) {
+      return user.account;
+    }
+    // 如果没有用户信息，尝试从localStorage获取
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          if (parsedUser && parsedUser.account) {
+            return parsedUser.account;
           }
+        } catch (e) {
+          console.error('Error parsing saved user:', e);
         }
       }
-      // 最后的后备方案，使用一个默认字母而不是"我"
-      return 'U'; // U for User
     }
-    return account ? account.charAt(0).toUpperCase() : '?';
+    // 最后的后备方案
+    return 'U';
   }
 
   // 组件挂载时聚焦输入框
@@ -133,9 +130,7 @@
     </button>
     <div class="chat-user-info">
       <div class="chat-avatar">
-        <div class="avatar-inner">
-          {getAvatarChar(chatUser)}
-        </div>
+        <Avatar account={chatUser} size="40px" />
         <div class="status-indicator" class:online={connected} class:connecting={connecting}></div>
       </div>
       <div class="chat-user-details">
@@ -188,16 +183,12 @@
                 {formatMessageTime(message.time)}
               </div>
             </div>
-            <div class="message-avatar">
-              {getAvatarChar('me')}
-            </div>
+            <Avatar account={getCurrentUserAccount()} size="32px" className="message-avatar" />
           </div>
         {:else}
           <!-- 接收的消息 -->
           <div class="message message-received">
-            <div class="message-avatar">
-              {getAvatarChar(message.from_account)}
-            </div>
+            <Avatar account={message.from_account} size="32px" className="message-avatar" />
             <div class="message-content">
               <div class="message-bubble">
                 <div class="message-text">{message.content}</div>
@@ -301,28 +292,12 @@
   }
 
   .chat-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--wechat-green, #07c160);
-    color: white;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 16px;
-    position: relative;
-    box-shadow: 0 2px 8px rgba(7, 193, 96, 0.3);
   }
 
-  .avatar-inner {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-  }
 
   .status-indicator {
     position: absolute;
@@ -454,20 +429,6 @@
     justify-content: flex-start;
   }
 
-  .message-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--wechat-green, #07c160);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
-    flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  }
 
 
   .message-content {
