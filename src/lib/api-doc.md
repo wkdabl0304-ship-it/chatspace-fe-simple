@@ -170,6 +170,62 @@ GET /api/user/info
 |» data|object|true|none||none|
 |»» account|string|true|none||none|
 
+## POST 修改密码
+
+POST /api/user/change-pwd
+
+> Body 请求参数
+
+```json
+{
+  "old_pwd": "12345678",
+  "new_pwd": "123456"
+}
+```
+
+### 请求参数
+
+|名称|位置|类型|必选|中文名|说明|
+|---|---|---|---|---|---|
+|Authorization|header|string| 是 ||none|
+|body|body|object| 是 ||none|
+|» old_pwd|body|string| 是 | 旧密码|none|
+|» new_pwd|body|string| 是 | 新密码|none|
+
+> 返回示例
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": {}
+}
+```
+
+```json
+{
+  "code": 10010,
+  "msg": "旧密码错误",
+  "data": null
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 返回数据结构
+
+状态码 **200**
+
+|名称|类型|必选|约束|中文名|说明|
+|---|---|---|---|---|---|
+|» code|integer|true|none||none|
+|» msg|string|true|none||none|
+|» data|object¦null|true|none||none|
+
 # 关系服务/好友管理
 
 ## POST 申请添加好友
@@ -373,6 +429,60 @@ GET /api/relation/friend
 |»» account|string|false|none||none|
 |»» create_at|integer|false|none||none|
 |» total|integer|true|none||none|
+
+## DELETE 删除好友
+
+DELETE /api/relation/friend
+
+> Body 请求参数
+
+```json
+{
+  "account": "lxx"
+}
+```
+
+### 请求参数
+
+|名称|位置|类型|必选|中文名|说明|
+|---|---|---|---|---|---|
+|Authorization|header|string| 是 ||none|
+|body|body|object| 是 ||none|
+|» account|body|string| 是 | 目标账号|none|
+
+> 返回示例
+
+```json
+{
+  "code": 10006,
+  "msg": "对方不是好友",
+  "data": null
+}
+```
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": {}
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|Inline|
+
+### 返回数据结构
+
+状态码 **200**
+
+|名称|类型|必选|约束|中文名|说明|
+|---|---|---|---|---|---|
+|» code|integer|true|none||none|
+|» msg|string|true|none||none|
+|» data|object¦null|true|none||none|
 
 # 文件服务
 

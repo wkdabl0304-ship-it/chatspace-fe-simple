@@ -112,6 +112,21 @@ export const userAPI = {
         
         return apiRequest(`/api/user/info?${params.toString()}`);
     },
+
+    /**
+     * 修改密码
+     * @param {string} oldPassword 
+     * @param {string} newPassword 
+     */
+    async changePassword(oldPassword, newPassword) {
+        return apiRequest('/api/user/change-pwd', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                old_pwd: oldPassword, 
+                new_pwd: newPassword 
+            }),
+        });
+    },
 };
 
 // 好友管理API
@@ -164,5 +179,16 @@ export const friendAPI = {
         params.append('size', size.toString());
         
         return apiRequest(`/api/relation/friend?${params.toString()}`);
+    },
+
+    /**
+     * 删除好友
+     * @param {string} account 
+     */
+    async deleteFriend(account) {
+        return apiRequest('/api/relation/friend', {
+            method: 'DELETE',
+            body: JSON.stringify({ account }),
+        });
     },
 };

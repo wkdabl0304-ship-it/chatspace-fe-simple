@@ -54,7 +54,7 @@
 
 <div 
 	class="avatar {className}" 
-	style="width: {size}; height: {size};"
+	style="width: {size}; height: {size}; --avatar-size: {size};"
 >
 	{#if !imageError}
 		<img 
@@ -101,7 +101,7 @@
 		justify-content: center;
 		color: white;
 		font-weight: bold;
-		font-size: 0.8em;
+		font-size: calc(var(--avatar-size, 36px) * 0.4);
 		background: linear-gradient(135deg, var(--wechat-green) 0%, #06ad56 100%);
 	}
 </style>
