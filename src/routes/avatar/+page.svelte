@@ -46,19 +46,27 @@
 	$: token = $authToken;
 	$: loggedIn = $isLoggedIn;
 
-	onMount(() => {
+	onMount(async () => {
 		// 初始化认证状态
 		initAuth();
 		
+		// 等待一小段时间让认证状态初始化完成
+		await new Promise(resolve => setTimeout(resolve, 50));
+		
+		// 直接从localStorage检查token，不依赖store
+		const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+		
 		// 检查登录状态，如果未登录则跳转到登录页面
-		if (!$isLoggedIn) {
+		if (!token) {
 			message = '请先登录后再上传头像';
 			setTimeout(() => {
 				goto('/login');
 			}, 2000);
 		}
-		
-		// 清理函数
+	});
+	
+	// 单独的清理函数
+	onMount(() => {
 		return () => {
 			if (typeof stopScaling === 'function') stopScaling();
 			if (clickTimer) {

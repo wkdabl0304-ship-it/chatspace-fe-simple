@@ -208,5 +208,17 @@ export function cleanupChatSystem() {
     processedMessages.clear();
 }
 
+/**
+ * 重置聊天UI状态（不断开WebSocket连接）
+ */
+export function resetChatUI() {
+    currentChatUser.set('');
+    chatUIState.set({
+        showChatWindow: false,
+        showFriendsList: true,
+        inputMessage: ''
+    });
+}
+
 // 重新导出WebSocket相关状态，方便组件使用
 export { wsConnected, wsConnecting, wsError };
