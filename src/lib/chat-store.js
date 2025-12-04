@@ -1,5 +1,17 @@
 import { writable, derived, get } from 'svelte/store';
-import { messages, connectWebSocket, disconnectWebSocket, sendMessage, wsConnected, wsConnecting, wsError } from './websocket.js';
+import { 
+    messages, 
+    connectWebSocket, 
+    disconnectWebSocket, 
+    sendMessage, 
+    wsConnected, 
+    wsConnecting, 
+    wsError,
+    onlineFriends,
+    friendStatusUpdates,
+    isFriendOnline,
+    getOnlineFriends
+} from './websocket.js';
 
 // 当前聊天对象
 export const currentChatUser = writable('');
@@ -212,13 +224,41 @@ export function cleanupChatSystem() {
  * 重置聊天UI状态（不断开WebSocket连接）
  */
 export function resetChatUI() {
-    currentChatUser.set('');
     chatUIState.set({
         showChatWindow: false,
         showFriendsList: true,
         inputMessage: ''
     });
+    currentChatUser.set('');
 }
+
+// 好友列表刷新触发器
+export const friendsListRefresh = writable(0);
+
+/**
+ * 触发好友列表刷新
+ */
+export function triggerFriendsListRefresh() {
+    friendsListRefresh.update(n => n + 1);
+}
+
+// 导出缓存功能
+export {
+    cacheStats,
+    getCacheStats,
+    clearChatCache,
+    clearAllCache,
+    cleanupExpiredCache,
+    CACHE_CONFIG
+} from './chat-cache.js';
+
+// 导出在线好友相关功能
+export { 
+    onlineFriends, 
+    friendStatusUpdates, 
+    isFriendOnline, 
+    getOnlineFriends 
+} from './websocket.js';
 
 // 重新导出WebSocket相关状态，方便组件使用
 export { wsConnected, wsConnecting, wsError };
