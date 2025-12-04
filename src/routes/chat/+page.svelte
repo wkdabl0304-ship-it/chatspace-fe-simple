@@ -10,7 +10,12 @@
     startChat, 
     recentChats,
     unreadCounts,
-    getUnreadCount
+    getUnreadCount,
+    onlineFriends,
+    isFriendOnline,
+    initChatSystem,
+    cleanupChatSystem,
+    friendsListRefresh
   } from '../../lib/chat-store.js';
   import ChatWindow from '../../lib/components/ChatWindow.svelte';
   import Avatar from '../../lib/components/Avatar.svelte';
@@ -46,11 +51,19 @@
   $: recentChatList = $recentChats;
   $: unreadCountsMap = $unreadCounts;
   $: currentUserAccount = $currentUser?.account;
+  $: onlineFriendsSet = $onlineFriends;
+  
+  // 响应式函数：检查好友是否在线
+  $: isOnline = (friendAccount) => {
+    return onlineFriendsSet.has(friendAccount);
+  };
 
   // 检查登录状态 - 等待认证状态初始化完成
   $: if (!$isLoggedIn && !loading && $authToken === null) {
     goto('/login');
   }
+
+  let friendsRefreshUnsubscribe;
 
   onMount(async () => {
     // 等待一小段时间让认证状态初始化完成
@@ -65,12 +78,29 @@
     // 添加点击外部区域关闭下拉菜单的事件监听器
     document.addEventListener('click', handleClickOutside);
     
+    // 初始化聊天系统（包括WebSocket连接）
+    initChatSystem();
+    
+    // 监听好友列表刷新触发器
+    friendsRefreshUnsubscribe = friendsListRefresh.subscribe(() => {
+      // 当触发器变化时，重新加载数据
+      loadData();
+    });
+    
     await loadData();
   });
   
   onDestroy(() => {
     // 移除事件监听器
     document.removeEventListener('click', handleClickOutside);
+    
+    // 取消好友列表刷新订阅
+    if (friendsRefreshUnsubscribe) {
+      friendsRefreshUnsubscribe();
+    }
+    
+    // 清理聊天系统
+    cleanupChatSystem();
   });
 
   /**
@@ -378,6 +408,7 @@
       default: return status || '未知状态';
     }
   }
+
 </script>
 
 <svelte:head>
@@ -816,6 +847,7 @@
           </div>
         {/if}
 
+
         <!-- 现代化好友列表 -->
         <div class="modern-card">
           <div class="card-header">
@@ -845,9 +877,17 @@
               {#each friends as friend}
                 <div class="modern-list-item friend-item">
                   <div class="friend-main-content" role="button" tabindex="0" on:click={() => handleStartChat(friend.account)} on:keydown={(e) => e.key === 'Enter' && handleStartChat(friend.account)}>
-                    <Avatar account={friend.account} size="40px" className="modern-avatar" />
+                    <div class="friend-avatar-container">
+                      <Avatar account={friend.account} size="40px" className="modern-avatar" />
+                      <div class="online-status-indicator" class:online={isOnline(friend.account)} class:offline={!isOnline(friend.account)}></div>
+                    </div>
                     <div class="modern-list-content">
-                      <div class="modern-list-title">{friend.account}</div>
+                      <div class="modern-list-title">
+                        {friend.account}
+                        <span class="online-status-text" class:online={isOnline(friend.account)}>
+                          {isOnline(friend.account) ? '在线' : '离线'}
+                        </span>
+                      </div>
                       <div class="modern-list-subtitle">点击开始聊天</div>
                     </div>
                     {#if getUnreadCount(friend.account) > 0}
@@ -1652,6 +1692,54 @@
 
   .friend-item:hover .friend-actions {
     opacity: 1;
+  }
+
+  /* 好友头像容器 */
+  .friend-avatar-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* 在线状态指示器 */
+  .online-status-indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: #ccc;
+    transition: all 0.3s ease;
+  }
+
+  .online-status-indicator.online {
+    background: #4CAF50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+  }
+
+  .online-status-indicator.offline {
+    background: #ccc;
+  }
+
+  /* 在线状态文本 */
+  .online-status-text {
+    font-size: 11px;
+    font-weight: 500;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+  }
+
+  .online-status-text.online {
+    color: #07c160;
+    background: rgba(7, 193, 96, 0.1);
+  }
+
+  .online-status-text:not(.online) {
+    color: var(--wechat-text-secondary, #8b8b8b);
+    background: rgba(139, 139, 139, 0.1);
   }
 
   /* 危险按钮样式 */

@@ -9,13 +9,21 @@
     closeChat,
     wsConnected,
     wsConnecting,
-    wsError
+    wsError,
+    triggerFriendsListRefresh,
+    isFriendOnline,
+    onlineFriends
   } from '../chat-store.js';
   import { currentUser } from '../auth.js';
+  import { friendAPI } from '../api.js';
   import Avatar from './Avatar.svelte';
 
   let messageContainer: HTMLDivElement;
   let inputElement: HTMLTextAreaElement;
+  let showDropdown = false;
+  let showDeleteConfirm = false;
+  let isDeleting = false;
+  let showUserDropdown = false;
 
   // 响应式变量
   $: messages = $currentChatMessages;
@@ -24,6 +32,12 @@
   $: connected = $wsConnected;
   $: connecting = $wsConnecting;
   $: error = $wsError;
+  $: onlineFriendsSet = $onlineFriends;
+  
+  // 响应式函数：检查当前聊天用户是否在线
+  $: isCurrentUserOnline = (user: string) => {
+    return onlineFriendsSet.has(user);
+  };
 
   // 自动滚动到底部
   async function scrollToBottom() {
@@ -104,62 +118,163 @@
             return parsedUser.account;
           }
         } catch (e) {
-          console.error('Error parsing saved user:', e);
+          console.error('解析用户信息失败:', e);
         }
       }
     }
-    // 最后的后备方案
-    return 'U';
+    return 'me';
   }
 
-  // 组件挂载时聚焦输入框
+  // 切换下拉菜单
+  function toggleDropdown() {
+    showDropdown = !showDropdown;
+  }
+
+  // 关闭下拉菜单
+  function closeDropdown() {
+    showDropdown = false;
+  }
+
+  // 切换用户下拉菜单
+  function toggleUserDropdown() {
+    showUserDropdown = !showUserDropdown;
+  }
+
+  // 关闭用户下拉菜单
+  function closeUserDropdown() {
+    showUserDropdown = false;
+  }
+
+  // 显示删除确认对话框
+  function showDeleteFriendConfirm() {
+    showDeleteConfirm = true;
+    closeDropdown();
+  }
+
+  // 取消删除好友
+  function cancelDeleteFriend() {
+    showDeleteConfirm = false;
+  }
+
+  // 确认删除好友
+  async function confirmDeleteFriend() {
+    if (!chatUser || isDeleting) {
+      return;
+    }
+
+    isDeleting = true;
+    
+    try {
+      console.log('开始删除好友:', chatUser);
+      await friendAPI.deleteFriend(chatUser);
+      
+      // 删除成功后触发好友列表刷新
+      triggerFriendsListRefresh();
+      
+      // 关闭聊天窗口和对话框
+      closeChat();
+      showDeleteConfirm = false;
+    } catch (err) {
+      console.error('删除好友失败:', err);
+      // 可以在这里添加错误提示
+    } finally {
+      isDeleting = false;
+    }
+  }
+
+  // 处理点击外部区域关闭下拉菜单
+  function handleClickOutside(event: Event) {
+    if (showDropdown) {
+      const dropdown = document.querySelector('.chat-dropdown-container');
+      if (dropdown && !dropdown.contains(event.target as Node)) {
+        closeDropdown();
+      }
+    }
+    
+    if (showUserDropdown) {
+      const userDropdown = document.querySelector('.user-dropdown-container');
+      if (userDropdown && !userDropdown.contains(event.target as Node)) {
+        closeUserDropdown();
+      }
+    }
+  }
+
   onMount(() => {
+    // 聚焦输入框
     if (inputElement) {
       inputElement.focus();
     }
+    
+    // 添加点击外部区域关闭下拉菜单的事件监听器
+    document.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   });
 </script>
 
 <div class="chat-window">
   <!-- 聊天头部 -->
   <header class="chat-header">
-    <button class="back-btn" on:click={closeChat} aria-label="返回聊天列表">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m15 18-6-6 6-6"/>
-      </svg>
-    </button>
-    <div class="chat-user-info">
-      <div class="chat-avatar">
-        <Avatar account={chatUser} size="40px" />
-        <div class="status-indicator" class:online={connected} class:connecting={connecting}></div>
-      </div>
-      <div class="chat-user-details">
-        <div class="chat-user-name">{chatUser}</div>
-        <div class="chat-status">
-          {#if connecting}
-            <span class="status-dot connecting"></span>
-            连接中...
-          {:else if connected}
-            <span class="status-dot online"></span>
-            在线
-          {:else if error}
-            <span class="status-dot offline"></span>
-            连接失败
-          {:else}
-            <span class="status-dot offline"></span>
-            离线
-          {/if}
-        </div>
-      </div>
-    </div>
-    <div class="header-actions">
-      <button class="action-btn" title="更多选项">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="1"/>
-          <circle cx="12" cy="5" r="1"/>
-          <circle cx="12" cy="19" r="1"/>
+    <div class="header-left">
+      <button class="back-btn" on:click={closeChat} aria-label="返回聊天列表">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
         </svg>
       </button>
+      <!-- 头像下拉菜单区域 -->
+      <div class="avatar-dropdown-container" on:click={toggleUserDropdown}>
+        <div class="user-profile clickable">
+          <Avatar account={chatUser} size="36px" className="user-avatar" />
+          <div class="user-info">
+            <div class="user-name">{chatUser}</div>
+            <div class="user-status" class:offline={!isCurrentUserOnline(chatUser)}>{isCurrentUserOnline(chatUser) ? '在线' : '离线'}</div>
+          </div>
+          <svg class="dropdown-arrow" class:rotated={showUserDropdown} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6,9 12,15 18,9"/>
+          </svg>
+        </div>
+        
+        {#if showUserDropdown}
+          <div class="avatar-dropdown-menu" on:click={(e) => e.stopPropagation()}>
+            <!-- 大尺寸头像显示 -->
+            <div class="dropdown-avatar-section">
+              <Avatar account={chatUser} size="80px" className="large-avatar" />
+              <div class="avatar-info">
+                <div class="avatar-name">{chatUser}</div>
+                <div class="avatar-status" class:offline={!isCurrentUserOnline(chatUser)}>{isCurrentUserOnline(chatUser) ? '在线' : '离线'}</div>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="chat-dropdown-container">
+        <button class="action-btn" title="更多选项" on:click={toggleDropdown}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="12" cy="5" r="1"/>
+            <circle cx="12" cy="19" r="1"/>
+          </svg>
+        </button>
+        
+        {#if showDropdown}
+          <div class="chat-dropdown-menu" on:click={(e) => e.stopPropagation()}>
+            <button class="dropdown-menu-item delete-item" on:click={showDeleteFriendConfirm}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+              <span>删除好友</span>
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
   </header>
 
@@ -236,6 +351,48 @@
       </button>
     </div>
   </div>
+
+  <!-- 删除好友确认对话框 -->
+  {#if showDeleteConfirm}
+    <div class="modal-overlay" on:click={cancelDeleteFriend}>
+      <div class="modal-dialog" on:click={(e) => e.stopPropagation()}>
+        <div class="modal-header">
+          <div class="modal-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <h3>删除好友</h3>
+        </div>
+        <div class="modal-content">
+          <p>确定要删除好友 <strong>{chatUser}</strong> 吗？</p>
+          <p class="modal-warning">删除后将无法继续聊天，需要重新添加好友。</p>
+        </div>
+        <div class="modal-actions">
+          <button
+            class="modal-btn modal-btn-cancel"
+            on:click={cancelDeleteFriend}
+            disabled={isDeleting}
+          >
+            取消
+          </button>
+          <button
+            class="modal-btn modal-btn-danger"
+            on:click={confirmDeleteFriend}
+            disabled={isDeleting}
+          >
+            {#if isDeleting}
+              删除中...
+            {:else}
+              确认删除
+            {/if}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -255,10 +412,18 @@
     background: var(--wechat-bg-secondary, #2d2d2d);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--wechat-border, #404040);
-    gap: 16px;
     position: relative;
     z-index: 10;
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+    justify-content: space-between;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    min-width: 0;
   }
 
   .back-btn {
@@ -284,85 +449,9 @@
     transform: translateX(-2px) scale(0.95);
   }
 
-  .chat-user-info {
-    display: flex;
-    align-items: center;
-    gap: var(--wechat-space-md);
-    flex: 1;
-  }
-
-  .chat-avatar {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-
-  .status-indicator {
-    position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid white;
-    background: #ccc;
-    transition: all 0.3s ease;
-  }
-
-  .status-indicator.online {
-    background: #4CAF50;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
-  }
-
-  .status-indicator.connecting {
-    background: #FF9800;
-    animation: pulse 1.5s infinite;
-  }
-
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
-  }
-
-  .chat-user-details {
-    flex: 1;
-  }
-
-  .chat-user-name {
-    font-weight: 600;
-    color: var(--wechat-text-primary, #ffffff);
-    margin-bottom: 4px;
-    font-size: 16px;
-  }
-
-  .chat-status {
-    font-size: 12px;
-    color: var(--wechat-text-secondary, #b3b3b3);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .status-dot.online {
-    background: #4CAF50;
-  }
-
-  .status-dot.offline {
-    background: #999;
-  }
-
-  .status-dot.connecting {
-    background: #FF9800;
-    animation: pulse 1.5s infinite;
   }
 
   .header-actions {
@@ -462,8 +551,10 @@
     background: linear-gradient(135deg, #07c160 0%, #06ad56 100%);
     color: white;
     border-radius: 18px 18px 4px 18px;
-    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
   }
+
 
   .message-received .message-bubble {
     background: white;
@@ -571,6 +662,303 @@
     box-shadow: none;
   }
 
+  /* 头像下拉菜单样式 - 与好友列表完全一致 */
+  .avatar-dropdown-container {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .user-profile.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .user-profile.clickable:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .user-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--wechat-text-primary, #ffffff);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  .user-status {
+    font-size: 11px;
+    color: var(--wechat-green, #07c160);
+    line-height: 1;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .user-status.offline {
+    color: var(--wechat-text-secondary, #b3b3b3);
+  }
+
+  .user-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--wechat-green, #07c160);
+  }
+
+  .user-status.offline::before {
+    background: var(--wechat-text-secondary, #b3b3b3);
+  }
+
+  .dropdown-arrow {
+    color: var(--wechat-text-secondary, #b3b3b3);
+    transition: transform 0.3s ease;
+    margin-left: 8px;
+  }
+
+  .dropdown-arrow.rotated {
+    transform: rotate(180deg);
+  }
+
+  .avatar-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    background: var(--wechat-bg-secondary, #2d2d2d);
+    border: 1px solid var(--wechat-border, #404040);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px);
+    z-index: 1000;
+    overflow: hidden;
+    min-width: 280px;
+    width: max-content;
+  }
+
+  .dropdown-avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .avatar-info {
+    flex: 1;
+  }
+
+  .avatar-name {
+    color: var(--wechat-text-primary, #ffffff);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .avatar-status {
+    color: var(--wechat-green, #07c160);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .avatar-status.offline {
+    color: var(--wechat-text-secondary, #b3b3b3);
+  }
+
+  .avatar-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--wechat-green, #07c160);
+  }
+
+  .avatar-status.offline::before {
+    background: var(--wechat-text-secondary, #b3b3b3);
+  }
+
+  /* 下拉菜单样式 */
+  .chat-dropdown-container {
+    position: relative;
+  }
+
+  .chat-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--wechat-bg-secondary, #2d2d2d);
+    border: 1px solid var(--wechat-border, #404040);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px);
+    min-width: 160px;
+    z-index: 1000;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+
+  .dropdown-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    color: var(--wechat-text-primary, #ffffff);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .dropdown-menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .dropdown-menu-item.delete-item {
+    color: #ff4757;
+  }
+
+  .dropdown-menu-item.delete-item:hover {
+    background: rgba(255, 71, 87, 0.1);
+  }
+
+  /* 模态对话框样式 */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-dialog {
+    background: var(--wechat-bg-secondary, #2d2d2d);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    max-width: 400px;
+    width: 90%;
+    overflow: hidden;
+    border: 1px solid var(--wechat-border, #404040);
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--wechat-border, #404040);
+  }
+
+  .modal-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 71, 87, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ff4757;
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    color: var(--wechat-text-primary, #ffffff);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .modal-content {
+    padding: 20px 24px;
+  }
+
+  .modal-content p {
+    margin: 0 0 12px 0;
+    color: var(--wechat-text-primary, #ffffff);
+    line-height: 1.5;
+  }
+
+  .modal-warning {
+    color: var(--wechat-text-secondary, #b3b3b3) !important;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px 24px;
+    justify-content: flex-end;
+  }
+
+  .modal-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 80px;
+  }
+
+  .modal-btn-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--wechat-text-primary, #ffffff);
+    border: 1px solid var(--wechat-border, #404040);
+  }
+
+  .modal-btn-cancel:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .modal-btn-danger {
+    background: linear-gradient(135deg, #ff4757 0%, #ff3742 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+  }
+
+  .modal-btn-danger:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 71, 87, 0.4);
+  }
+
+  .modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
   @media (max-width: 768px) {
     .message-content {
       max-width: 85%;
@@ -582,6 +970,11 @@
     
     .messages-container {
       padding: var(--wechat-space-sm);
+    }
+
+    .modal-dialog {
+      margin: 20px;
+      width: calc(100% - 40px);
     }
   }
 </style>

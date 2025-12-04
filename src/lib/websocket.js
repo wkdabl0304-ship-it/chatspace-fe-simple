@@ -1,4 +1,10 @@
 import { writable, get } from 'svelte/store';
+import { 
+    cacheMessages, 
+    loadCachedMessages, 
+    initializeCache,
+    cleanupExpiredCache 
+} from './chat-cache.js';
 import { authToken } from './auth.js';
 import { getWebSocketUrl } from './config.js';
 
@@ -6,9 +12,20 @@ import { getWebSocketUrl } from './config.js';
 export const wsConnected = writable(false);
 export const wsConnecting = writable(false);
 
+// 发送消息相关（保留简单实现）
+
+// 接收消息处理
+const receivedMessageIds = new Set(); // 防止重复消息
+let receivedMessageCounter = 0;
+const messageProcessingQueue = []; // 接收消息处理队列
+let isProcessingReceived = false;
+
 // 消息存储
 export const messages = writable(new Map()); // Map<string, Array<Message>>
-export const onlineUsers = writable(new Set());
+// 在线好友状态管理
+export const onlineFriends = writable(new Set()); // Set<string> - 在线好友账号列表
+/** @type {import('svelte/store').Writable<Array<{account: string, status: 'online'|'offline', timestamp: number}>>} */
+export const friendStatusUpdates = writable([]); // Array<{account: string, status: 'online'|'offline', timestamp: number}>
 
 // 错误和通知
 export const wsError = writable('');
@@ -57,12 +74,26 @@ export function connectWebSocket() {
             wsConnecting.set(false);
             wsError.set('');
             reconnectAttempts = 0;
+            
+            // 初始化缓存系统
+            try {
+                initializeCache();
+            } catch (error) {
+                console.error('初始化缓存系统失败:', error);
+            }
+            
+            // 添加调试信息
+            console.log('WebSocket连接状态:', {
+                readyState: ws?.readyState,
+                url: ws?.url
+            });
         };
 
         ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
+                // 将消息加入处理队列，确保按顺序处理
+                queueReceivedMessage(data);
             } catch (error) {
                 console.error('解析WebSocket消息失败:', error, event.data);
             }
@@ -94,11 +125,53 @@ export function connectWebSocket() {
 }
 
 /**
+ * 将接收到的消息加入处理队列
+ * @param {any} data 消息数据
+ */
+function queueReceivedMessage(data) {
+    // 为消息添加接收时间戳和唯一ID
+    const messageWithId = {
+        ...data,
+        receivedAt: Date.now(),
+        processingId: `recv_${++receivedMessageCounter}_${Date.now()}`
+    };
+    
+    messageProcessingQueue.push(messageWithId);
+    processReceivedMessages();
+}
+
+/**
+ * 处理接收消息队列
+ */
+async function processReceivedMessages() {
+    if (isProcessingReceived || messageProcessingQueue.length === 0) {
+        return;
+    }
+
+    isProcessingReceived = true;
+
+    while (messageProcessingQueue.length > 0) {
+        const data = messageProcessingQueue.shift();
+        
+        try {
+            await handleWebSocketMessage(data);
+        } catch (error) {
+            console.error('处理接收消息失败:', error, data);
+        }
+        
+        // 控制处理频率，避免UI阻塞
+        await new Promise(resolve => setTimeout(resolve, 1));
+    }
+
+    isProcessingReceived = false;
+}
+
+/**
  * 处理WebSocket消息
  * @param {any} data 
  */
-function handleWebSocketMessage(data) {
-    console.log('收到WebSocket消息:', data);
+async function handleWebSocketMessage(data) {
+    console.log('处理WebSocket消息:', data);
 
     // 处理错误消息
     if (data.code && data.code !== 200) {
@@ -114,25 +187,57 @@ function handleWebSocketMessage(data) {
         return;
     }
 
-    // 处理聊天消息
-    if (data.from_account && data.content) {
-        const message = {
-            from_account: data.from_account,
-            content: data.content,
-            type: data.type || '00',
-            time: data.time ? data.time * 1000 : Date.now(), // 转换为毫秒
-            id: `${data.from_account}-${data.time || Date.now()}`
-        };
+    // 根据消息类型处理不同的消息
+    const messageType = data.type;
+    
+    if (messageType === '00') {
+        // 处理聊天消息
+        if (data.from_account && data.content) {
+            // 生成更可靠的消息ID，避免重复
+            const messageId = data.message_id || 
+                             `${data.from_account}-${data.time || data.receivedAt}-${Math.random().toString(36).substr(2, 9)}`;
+            
+            // 检查是否已经处理过这条消息
+            if (receivedMessageIds.has(messageId)) {
+                console.log('跳过重复消息:', messageId);
+                return;
+            }
+            
+            receivedMessageIds.add(messageId);
+            
+            // 清理旧的消息ID记录（保留最近1000条）
+            if (receivedMessageIds.size > 1000) {
+                const idsArray = Array.from(receivedMessageIds);
+                const toDelete = idsArray.slice(0, idsArray.length - 1000);
+                toDelete.forEach(id => receivedMessageIds.delete(id));
+            }
 
-        addMessage(data.from_account, message);
-        
-        // 添加通知（如果不是当前聊天对象）
-        addNotification({
-            type: 'message',
-            from: data.from_account,
-            content: data.content,
-            timestamp: message.time
-        });
+            const message = {
+                from_account: data.from_account,
+                content: data.content,
+                type: data.type,
+                time: data.time ? data.time * 1000 : data.receivedAt,
+                id: messageId
+            };
+
+            addMessage(data.from_account, message);
+            
+            // 添加通知（如果不是当前聊天对象）
+            addNotification({
+                type: 'message',
+                from: data.from_account,
+                content: data.content,
+                timestamp: message.time
+            });
+        }
+    } else if (messageType === '02') {
+        // 处理好友登录/登出消息
+        handleFriendStatusUpdate(data);
+    } else if (messageType === '04') {
+        // 处理在线好友列表
+        handleOnlineFriendsList(data);
+    } else {
+        console.log('未知消息类型:', messageType, data);
     }
 }
 
@@ -152,6 +257,13 @@ function addMessage(chatId, message) {
         const msgs = msgMap.get(chatId);
         if (msgs.length > 1000) {
             msgs.splice(0, msgs.length - 1000);
+        }
+        
+        // 自动缓存消息到本地存储
+        try {
+            cacheMessages(chatId, msgs);
+        } catch (error) {
+            console.error('缓存消息失败:', error);
         }
         
         return msgMap;
@@ -191,6 +303,7 @@ export function sendMessage(toAccount, content, type = '00') {
     addMessage(toAccount, localMessage);
 }
 
+
 /**
  * 断开WebSocket连接
  */
@@ -208,6 +321,104 @@ export function disconnectWebSocket() {
     wsConnected.set(false);
     wsConnecting.set(false);
     reconnectAttempts = 0;
+}
+
+/**
+ * 处理好友状态更新消息 (type: '02')
+ * @param {any} data - 包含 content ('Login'/'Logout'), addi (好友账号), time
+ */
+function handleFriendStatusUpdate(data) {
+    const { content, addi: friendAccount, time } = data;
+    
+    if (!friendAccount) {
+        console.warn('好友状态更新消息缺少好友账号信息');
+        return;
+    }
+    
+    const isOnline = content === 'Login';
+    const timestamp = time ? time * 1000 : Date.now();
+    
+    console.log(`好友 ${friendAccount} ${isOnline ? '上线' : '下线'}`);
+    
+    // 更新在线好友列表
+    onlineFriends.update(friends => {
+        const newFriends = new Set(friends);
+        if (isOnline) {
+            newFriends.add(friendAccount);
+        } else {
+            newFriends.delete(friendAccount);
+        }
+        return newFriends;
+    });
+    
+    // 添加状态更新记录
+    friendStatusUpdates.update(updates => {
+        /** @type {'online' | 'offline'} */
+        const status = isOnline ? 'online' : 'offline';
+        const newUpdate = {
+            account: friendAccount,
+            status,
+            timestamp
+        };
+        
+        // 保持最近100条状态更新记录
+        const newUpdates = [newUpdate, ...updates].slice(0, 100);
+        return newUpdates;
+    });
+    
+    // 添加通知
+    addNotification({
+        type: 'friend_status',
+        message: `${friendAccount} ${isOnline ? '上线了' : '下线了'}`,
+        from: friendAccount,
+        timestamp
+    });
+}
+
+/**
+ * 处理在线好友列表消息 (type: '04')
+ * @param {any} data - 包含 content (逗号分隔的好友账号列表), time
+ */
+function handleOnlineFriendsList(data) {
+    const { content, time } = data;
+    
+    console.log('收到在线好友列表:', content);
+    
+    // 解析在线好友列表
+    const onlineFriendsArray = content ? content.split(',').filter(/** @param {string} account */ account => account.trim()) : [];
+    
+    // 更新在线好友状态
+    onlineFriends.set(new Set(onlineFriendsArray));
+    
+    console.log('当前在线好友:', onlineFriendsArray);
+    
+    // 添加通知
+    if (onlineFriendsArray.length > 0) {
+        addNotification({
+            type: 'system',
+            message: `当前有 ${onlineFriendsArray.length} 位好友在线`,
+            timestamp: time ? time * 1000 : Date.now()
+        });
+    }
+}
+
+/**
+ * 检查指定好友是否在线
+ * @param {string} friendAccount 好友账号
+ * @returns {boolean}
+ */
+export function isFriendOnline(friendAccount) {
+    const friends = get(onlineFriends);
+    return friends.has(friendAccount);
+}
+
+/**
+ * 获取所有在线好友列表
+ * @returns {string[]} 在线好友账号数组
+ */
+export function getOnlineFriends() {
+    const friends = get(onlineFriends);
+    return Array.from(friends);
 }
 
 /**
@@ -255,13 +466,33 @@ export function clearNotification(timestamp) {
 }
 
 /**
- * 获取指定聊天的消息
- * @param {string} chatId 
+ * 获取指定聊天的消息（包含缓存）
+ * @param {string} chatId 聊天ID
  * @returns {Array<any>}
  */
 export function getChatMessages(chatId) {
     const msgMap = get(messages);
-    return msgMap.get(chatId) || [];
+    let currentMessages = msgMap.get(chatId) || [];
+    
+    // 如果内存中没有消息，尝试从缓存加载
+    if (currentMessages.length === 0) {
+        try {
+            const cachedMessages = loadCachedMessages(chatId);
+            if (cachedMessages.length > 0) {
+                // 将缓存的消息加载到内存中
+                messages.update(map => {
+                    map.set(chatId, cachedMessages);
+                    return map;
+                });
+                currentMessages = cachedMessages;
+                console.log(`从缓存加载消息: ${chatId}, 数量: ${cachedMessages.length}`);
+            }
+        } catch (error) {
+            console.error('加载缓存消息失败:', error);
+        }
+    }
+    
+    return currentMessages;
 }
 
 /**
