@@ -75,8 +75,6 @@
     loading = true;
     
     try {
-      console.log('开始修改密码...');
-      
       await userAPI.changePassword(oldPassword, newPassword);
       
       success = true;

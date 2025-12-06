@@ -165,7 +165,6 @@
     isDeleting = true;
     
     try {
-      console.log('开始删除好友:', chatUser);
       await friendAPI.deleteFriend(chatUser);
       
       // 删除成功后触发好友列表刷新
