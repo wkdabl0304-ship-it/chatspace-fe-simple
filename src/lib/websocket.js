@@ -47,12 +47,10 @@ const RECONNECT_DELAY = 3000;
 export function connectWebSocket() {
     const token = get(authToken);
     if (!token) {
-        console.warn('没有认证token，无法连接WebSocket');
         return;
     }
 
     if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
-        console.log('WebSocket已连接或正在连接中');
         return;
     }
 
@@ -61,15 +59,12 @@ export function connectWebSocket() {
 
     try {
         const wsUrl = getWebSocketUrl('/ws/chat/');
-        console.log('连接WebSocket:', wsUrl);
         
         // 使用标准的token参数方式连接
         const wsUrlWithToken = `${wsUrl}?token=${encodeURIComponent(token)}`;
-        console.log('连接URL:', wsUrlWithToken);
         ws = new WebSocket(wsUrlWithToken);
         
         ws.onopen = () => {
-            console.log('WebSocket连接已建立');
             wsConnected.set(true);
             wsConnecting.set(false);
             wsError.set('');
@@ -81,12 +76,6 @@ export function connectWebSocket() {
             } catch (error) {
                 console.error('初始化缓存系统失败:', error);
             }
-            
-            // 添加调试信息
-            console.log('WebSocket连接状态:', {
-                readyState: ws?.readyState,
-                url: ws?.url
-            });
         };
 
         ws.onmessage = (event) => {
@@ -100,7 +89,6 @@ export function connectWebSocket() {
         };
 
         ws.onclose = (event) => {
-            console.log('WebSocket连接已关闭:', event.code, event.reason);
             wsConnected.set(false);
             wsConnecting.set(false);
             
@@ -171,8 +159,6 @@ async function processReceivedMessages() {
  * @param {any} data 
  */
 async function handleWebSocketMessage(data) {
-    console.log('处理WebSocket消息:', data);
-
     // 处理错误消息
     if (data.code && data.code !== 200) {
         console.error('服务器错误:', data.msg);
@@ -199,7 +185,6 @@ async function handleWebSocketMessage(data) {
             
             // 检查是否已经处理过这条消息
             if (receivedMessageIds.has(messageId)) {
-                console.log('跳过重复消息:', messageId);
                 return;
             }
             
@@ -236,8 +221,6 @@ async function handleWebSocketMessage(data) {
     } else if (messageType === '04') {
         // 处理在线好友列表
         handleOnlineFriendsList(data);
-    } else {
-        console.log('未知消息类型:', messageType, data);
     }
 }
 
@@ -287,7 +270,6 @@ export function sendMessage(toAccount, content, type = '00') {
         type: type
     };
 
-    console.log('发送消息:', message);
     ws.send(JSON.stringify(message));
 
     // 添加到本地消息存储（作为发送的消息）
@@ -331,14 +313,11 @@ function handleFriendStatusUpdate(data) {
     const { content, addi: friendAccount, time } = data;
     
     if (!friendAccount) {
-        console.warn('好友状态更新消息缺少好友账号信息');
         return;
     }
     
     const isOnline = content === 'Login';
     const timestamp = time ? time * 1000 : Date.now();
-    
-    console.log(`好友 ${friendAccount} ${isOnline ? '上线' : '下线'}`);
     
     // 更新在线好友列表
     onlineFriends.update(friends => {
@@ -382,15 +361,11 @@ function handleFriendStatusUpdate(data) {
 function handleOnlineFriendsList(data) {
     const { content, time } = data;
     
-    console.log('收到在线好友列表:', content);
-    
     // 解析在线好友列表
     const onlineFriendsArray = content ? content.split(',').filter(/** @param {string} account */ account => account.trim()) : [];
     
     // 更新在线好友状态
     onlineFriends.set(new Set(onlineFriendsArray));
-    
-    console.log('当前在线好友:', onlineFriendsArray);
     
     // 添加通知
     if (onlineFriendsArray.length > 0) {
@@ -430,10 +405,8 @@ function scheduleReconnect() {
     }
     
     reconnectAttempts++;
-    console.log(`安排第${reconnectAttempts}次重连，${RECONNECT_DELAY}ms后执行`);
     
     reconnectTimer = setTimeout(() => {
-        console.log(`执行第${reconnectAttempts}次重连`);
         connectWebSocket();
     }, RECONNECT_DELAY);
 }
@@ -485,7 +458,6 @@ export function getChatMessages(chatId) {
                     return map;
                 });
                 currentMessages = cachedMessages;
-                console.log(`从缓存加载消息: ${chatId}, 数量: ${cachedMessages.length}`);
             }
         } catch (error) {
             console.error('加载缓存消息失败:', error);

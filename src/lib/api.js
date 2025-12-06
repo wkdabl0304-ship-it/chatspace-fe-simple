@@ -18,13 +18,9 @@ async function apiRequest(endpoint, options = {}) {
 
     // 添加认证头
     const token = get(authToken);
-    console.log('当前token:', token ? 'exists' : 'null');
     
     if (token) {
         defaultHeaders.Authorization = `Bearer ${token}`;
-        console.log('Authorization头已添加');
-    } else {
-        console.log('没有token，跳过Authorization头');
     }
 
     const config = {
@@ -36,7 +32,6 @@ async function apiRequest(endpoint, options = {}) {
     };
 
     try {
-        console.log('API请求:', url, config);
         const response = await fetch(url, config);
         
         if (!response.ok) {
@@ -44,7 +39,6 @@ async function apiRequest(endpoint, options = {}) {
         }
         
         const data = await response.json();
-        console.log('API响应:', data);
         
         // 处理不同的响应格式
         if (data.code !== undefined) {

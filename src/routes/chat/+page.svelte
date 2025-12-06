@@ -111,22 +111,18 @@
     error = '';
 
     try {
-      console.log('开始加载数据...');
-      
       // 分别加载好友列表和好友申请，避免一个失败影响另一个
       let friendsResponse = null;
       let requestsResponse = null;
       
       try {
         friendsResponse = await friendAPI.getFriendList();
-        console.log('好友列表加载成功:', friendsResponse);
       } catch (friendsError) {
         console.error('加载好友列表失败:', friendsError);
       }
       
       try {
         requestsResponse = await friendAPI.getFriendRequests();
-        console.log('好友申请加载成功:', requestsResponse);
       } catch (requestsError) {
         console.error('加载好友申请失败:', requestsError);
       }
@@ -149,8 +145,6 @@
       } else {
         friendRequests = requestsResponse?.data || [];
       }
-      
-      console.log('数据加载完成 - 好友:', friends.length, '申请:', friendRequests.length);
     } catch (err) {
       error = err.message || '加载数据失败';
       console.error('加载数据错误:', err);
@@ -173,8 +167,6 @@
     searchedUser = null;
     
     try {
-      console.log('正在搜索用户:', targetAccount);
-      
       // 直接调用API，不通过apiRequest包装，这样可以直接处理不同的响应码
       const baseUrl = get(apiBaseUrl);
       const token = get(authToken);
@@ -192,10 +184,8 @@
       }
       
       const result = await response.json();
-      console.log('搜索API响应:', result);
       
       if (result.code === 200 && result.data) {
-        console.log('找到用户:', result.data);
         searchedUser = result.data;
         searchError = ''; // 清除搜索错误信息
       } else if (result.code === 10002) {
@@ -232,8 +222,6 @@
     error = '';
     
     try {
-      console.log('开始添加好友:', searchedUser.account);
-      
       // 发送好友申请
       await friendAPI.addFriend(searchedUser.account, addFriendRemark.trim());
       
@@ -283,7 +271,6 @@
     error = '';
     
     try {
-      console.log('处理好友申请:', { account, accept });
       await friendAPI.replyFriendRequest(account, accept);
       
       // 关闭弹窗
@@ -328,8 +315,6 @@
     error = '';
     
     try {
-      console.log('开始删除好友:', friendToDelete);
-      
       await friendAPI.deleteFriend(friendToDelete);
       
       // 重置状态

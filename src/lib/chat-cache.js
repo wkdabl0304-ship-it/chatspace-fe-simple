@@ -60,8 +60,6 @@ export function cacheMessages(chatId, messages) {
         // 保存到本地存储
         saveCacheToStorage(cache);
         updateCacheStats(cache);
-        
-        console.log(`缓存消息: ${chatId}, 消息数量: ${limitedMessages.length}`);
     } catch (error) {
         console.error('缓存消息失败:', error);
     }
@@ -90,7 +88,6 @@ export function loadCachedMessages(chatId) {
             return [];
         }
         
-        console.log(`加载缓存消息: ${chatId}, 消息数量: ${chatCache.messageCount}`);
         return chatCache.messages || [];
     } catch (error) {
         console.error('加载缓存消息失败:', error);
@@ -118,7 +115,6 @@ export function cleanupExpiredCache() {
         if (cleanedCount > 0) {
             saveCacheToStorage(cache);
             updateCacheStats(cache);
-            console.log(`清理过期缓存: ${cleanedCount} 个聊天记录`);
         }
         
         // 更新最后清理时间
@@ -142,7 +138,6 @@ export function clearChatCache(chatId) {
             delete cache[chatId];
             saveCacheToStorage(cache);
             updateCacheStats(cache);
-            console.log(`清除聊天缓存: ${chatId}`);
         }
     } catch (error) {
         console.error('清除聊天缓存失败:', error);
@@ -164,8 +159,6 @@ export function clearAllCache() {
                 cacheSize: 0,
                 lastCleanup: Date.now()
             });
-            
-            console.log('已清除所有聊天缓存');
         }
     } catch (error) {
         console.error('清除所有缓存失败:', error);
@@ -209,8 +202,6 @@ export function initializeCache() {
         if (timeSinceLastCleanup > 24 * 60 * 60 * 1000) {
             cleanupExpiredCache();
         }
-        
-        console.log('聊天缓存系统已初始化');
     } catch (error) {
         console.error('初始化缓存系统失败:', error);
     }
@@ -249,7 +240,6 @@ function saveCacheToStorage(cache) {
         console.error('保存缓存失败:', error);
         // 如果存储空间不足，清理一些旧缓存
         if (error.name === 'QuotaExceededError') {
-            console.log('存储空间不足，清理旧缓存...');
             cleanupOldestCache(cache);
         }
     }
@@ -335,8 +325,6 @@ function cleanupOldestCache(cache) {
         // 重新尝试保存
         localStorage.setItem(CACHE_CONFIG.STORAGE_KEY, JSON.stringify(cache));
         updateCacheStats(cache);
-        
-        console.log(`清理最旧缓存: ${toDeleteCount} 个聊天记录`);
     } catch (error) {
         console.error('清理最旧缓存失败:', error);
     }
